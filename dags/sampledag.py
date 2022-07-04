@@ -12,22 +12,16 @@ DAG_ID = os.path.basename(__file__).replace(".py", "")
 
 TABLES = ["users", "venue", "category", "date", "event", "listing", "sales"]
 
-DEFAULT_ARGS = {
-    "owner": "garystafford",
-    "depends_on_past": False,
-    "retries": 0,
-    "email_on_failure": False,
-    "email_on_retry": False,
-}
+
 
 with DAG(
     dag_id=DAG_ID,
-    description="Run AWS Glue ETL Jobs - source data to raw (bronze) data",
+    description="Run AWS Glue ETL Jobs - raw data to refined (silver) data",
     default_args=DEFAULT_ARGS,
-    dagrun_timeout=timedelta(minutes=5),
+    dagrun_timeout=timedelta(minutes=15),
     start_date=days_ago(1),
     schedule_interval=None,
-    tags=["data lake demo", "raw", "bronze"],
+    tags=["data lake demo", "refined", "silver"],
 ) as dag:
     begin = DummyOperator(task_id="begin")
 
@@ -36,18 +30,19 @@ with DAG(
     list_glue_tables = BashOperator(
         task_id="list_glue_tables",
         bash_command="""aws glue get-tables --database-name tickit_demo \
-                          --query 'TableList[].Name' --expression "raw_*"  \
+                          --query 'TableList[].Name' --expression "refined_*"  \
                           --output table""",
     )
 
     for table in TABLES:
-        start_jobs_raw = AwsGlueJobOperator(
-            task_id=f"start_job_{table}_raw", job_name=f"tickit_public_{table}_raw"
+        start_jobs_refined = AwsGlueJobOperator(
+            task_id=f"start_job_{table}_refined",
+            job_name=f"tickit_public_{table}_refine",
         )
 
         chain(
             begin,
-            start_jobs_raw,
+            start_jobs_refined,
             list_glue_tables,
             end,
         )
